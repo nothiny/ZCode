@@ -47,7 +47,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build CLI and TUI dependencies
-        run: pnpm --filter @zcode/cli... build
+        run: |
+          pnpm --filter @zcode/node-repl-host... build
+          pnpm --filter @zcode/browser-use-plugin... build
+          pnpm --filter @zcode/cli... build
 
       - name: Build standalone executable
         run: pnpm --dir apps/zcode-cli exec node packages/cli/scripts/build-sea.mjs --target ${{ matrix.target }}
@@ -61,6 +64,16 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: tar -czf "${{ matrix.archive }}" -C apps/zcode-cli/packages/cli/dist "${{ matrix.executable }}"
+
+      - name: Smoke test executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '& "apps/zcode-cli/packages/cli/dist/${{ matrix.executable }}" --help'
+
+      - name: Smoke test executable
+        if: runner.os != 'Windows'
+        shell: bash
+        run: "apps/zcode-cli/packages/cli/dist/${{ matrix.executable }} --help"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
