@@ -1,0 +1,88 @@
+name: Build CLI and TUI
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win-x64
+            executable: zcode-windows-x64.exe
+            archive: zcode-windows-x64.zip
+          - os: ubuntu-latest
+            target: linux-x64
+            executable: zcode-linux-x64
+            archive: zcode-linux-x64.tar.gz
+          - os: macos-14
+            target: darwin-arm64
+            executable: zcode-darwin-arm64
+            archive: zcode-darwin-arm64.tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build CLI and TUI dependencies
+        run: pnpm --filter @zcode/cli... build
+
+      - name: Build standalone executable
+        run: pnpm --dir apps/zcode-cli exec node packages/cli/scripts/build-sea.mjs --target ${{ matrix.target }}
+
+      - name: Package Windows executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path "apps/zcode-cli/packages/cli/dist/${{ matrix.executable }}" -DestinationPath "${{ matrix.archive }}"
+
+      - name: Package Unix executable
+        if: runner.os != 'Windows'
+        shell: bash
+        run: tar -czf "${{ matrix.archive }}" -C apps/zcode-cli/packages/cli/dist "${{ matrix.executable }}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ matrix.archive }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download built executables
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: zcode-*
+          merge-multiple: true
+
+      - name: Create release and upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" release-assets/* --title "ZCode ${GITHUB_REF_NAME}" --generate-notes

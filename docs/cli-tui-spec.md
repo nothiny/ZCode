@@ -110,6 +110,22 @@ Acceptance scenarios:
 - A successful stream begins with one session header and ends with one result;
   a startup or execution error still produces one structured error result.
 
+## GitHub distribution
+
+The repository keeps source and local development commands as the canonical
+interface. A GitHub Actions workflow also builds platform-specific Node SEA
+executables, which include the CLI and TUI runtime assets in one file. Manual
+workflow runs publish downloadable artifacts; pushing a `v*` tag additionally
+creates a GitHub Release with the Windows x64, Linux x64, and macOS arm64
+archives. The workflow must build on each target operating system so native TUI
+and terminal dependencies match the downloaded executable.
+
+Acceptance scenarios:
+
+- A workflow dispatch produces one downloadable executable artifact per target.
+- Pushing `v<version>` creates a GitHub Release whose assets launch `zcode
+  --help` without a checkout or pnpm workspace.
+
 ## Delivery and cancellation
 
 Input -> CLI adapter -> bootstrap app -> AgentRuntime -> SessionEvent ->
