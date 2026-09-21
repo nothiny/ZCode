@@ -19,6 +19,7 @@ export function isTuiInvocation(argv: readonly string[]): boolean {
   }
 
   if (
+    parsed.values["no-tui"] === true ||
     parsed.values.help === true ||
     parsed.values.version === true ||
     typeof parsed.values.prompt === "string" ||

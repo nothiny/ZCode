@@ -215,10 +215,13 @@ interface HeadlessSessionObserver {
   /** 唯一的会话事件消费者。装在**一个** sink 上——两个 sink 各写一次就是重复行。 */
   observe: (event: SessionEvent) => void;
   /**
-   * 观察到过 dwf 活动吗？这是「等待结算」的**窄触发**判据：没有 dwf 活动的运行
-   * 一次都不进等待，行为与改动前逐字节相同。
+   * 观察到过后台活动吗？这是「等待结算」的触发判据：没有后台活动的运行一次都不进等待，
+   * 行为与改动前逐字节相同。
    */
-  hasWorkflowActivity: () => boolean;
+  /** Any background task started by this process is enough to trigger the settle phase. */
+  hasBackgroundActivity: () => boolean;
+  /** IDs observed as started and not yet observed as terminal. */
+  activeBackgroundTaskIds: () => readonly string[];
   /**
    * 开始记录回合文本。必须在 `submitPrompt` 返回后**同步**调用：那一刻起到第一个 await
    * 之间没有任何事件能插队，所以通知驱动回合的第一条事件不会漏。
@@ -265,13 +268,15 @@ export const createHeadlessSessionObserver = (
       ? createWorkflowProgressReporter({ write: (line) => void stderr.write(line) })
       : undefined;
 
-  let workflowActivity = false;
+  let backgroundActivity = false;
+  const activeBackgroundTaskIds = new Set<string>();
   let waiting = false;
   let excludedTurnId: string | undefined;
   const turnResponses: string[] = [];
 
   return {
-    hasWorkflowActivity: () => workflowActivity,
+    hasBackgroundActivity: () => backgroundActivity,
+    activeBackgroundTaskIds: () => [...activeBackgroundTaskIds],
     beginWaitPhase: (excludeTurnId) => {
       waiting = true;
       excludedTurnId = excludeTurnId;
@@ -280,7 +285,23 @@ export const createHeadlessSessionObserver = (
     observe: (event) => {
       writeStreamEvent?.(event);
       reportProgress?.(event);
-      if (isWorkflowActivityEvent(event)) workflowActivity = true;
+      if (event.type === SessionEventType.BackgroundTaskStarted) {
+        backgroundActivity = true;
+        const taskId = (event.payload as { taskId?: unknown }).taskId;
+        if (typeof taskId === "string" && taskId.length > 0) activeBackgroundTaskIds.add(taskId);
+      } else if (
+        event.type === SessionEventType.BackgroundTaskUpdated ||
+        event.type === SessionEventType.BackgroundTaskCompleted
+      ) {
+        const payload = event.payload as { taskId?: unknown; status?: unknown };
+        if (
+          typeof payload.taskId === "string" &&
+          payload.status !== "running"
+        ) {
+          activeBackgroundTaskIds.delete(payload.taskId);
+        }
+      }
+      if (isBackgroundActivityEvent(event)) backgroundActivity = true;
       if (!waiting || event.type !== SessionEventType.TurnComplete) return;
       // 首个回合的文本来自 submitPrompt 的返回值；它的 turn_complete 若迟到就会重复计数。
       if (event.turnId !== undefined && String(event.turnId) === excludedTurnId) return;
@@ -297,12 +318,9 @@ export const createHeadlessSessionObserver = (
  * 回合结束才到达 sink。`BackgroundTaskStarted` 则在 tool executor 登记后台任务时同步发出，
  * **必然**落在启动它的那个回合之内——所以它是更早、更硬的证据。两个都收，触发只需其一。
  */
-const isWorkflowActivityEvent = (event: SessionEvent): boolean => {
+const isBackgroundActivityEvent = (event: SessionEvent): boolean => {
   if (isDynamicWorkflowRunProgressEvent(event)) return true;
-  return (
-    event.type === SessionEventType.BackgroundTaskStarted &&
-    (event.payload as { taskKind?: unknown }).taskKind === "workflow"
-  );
+  return event.type === SessionEventType.BackgroundTaskStarted;
 };
 
 /** runtime 的两个 busy 权威事实。窄接口而不是整个 AgentRuntime——等待只读这两个布尔。 */
@@ -325,8 +343,8 @@ const HEADLESS_WORKFLOW_POLL_INTERVAL_MS = 100;
  * 于是「任务已不 running」与「回合工作已 pending」在同一个同步块内翻转，轮询者无法落在中间。
  *
  * 谓词刻意**宽于 dwf**：并存的后台 Bash/subagent 任务也会被等。它们的通知回合与工作流的
- * 交织在同一条队列上，分开等没有意义。窄的那一半是**触发**（`hasWorkflowActivity`），
- * 所以没有 dwf 活动的运行完全不受影响。
+ * 交织在同一条队列上，分开等没有意义。观察到任意后台任务就是**触发**，所以没有后台活动的
+ * 运行完全不受影响。
  *
  * 不设超时、不设 env 逃生口：控制手段是 Cancel 与 Ctrl-C，后者经既有孤儿收敛
  * 把 run 记成 `stopped(interrupted)`（失败码 `Interrupted`，可 resume）。signal 一旦 abort 就立刻返回，绝不吞信号。

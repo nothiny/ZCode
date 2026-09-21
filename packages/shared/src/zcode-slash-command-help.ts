@@ -21,12 +21,12 @@ export const BUILTIN_ZCODE_SLASH_COMMAND_HELP_ENTRIES: readonly BuiltinZCodeSlas
       details: [
         "Opens a Coding Plan setup picker when called without arguments.",
         "Z.ai and BigModel browser login poll for authorization, then securely save credentials and refresh available models.",
-        "Manual API key variants accept the API key as an argument.",
+        "Manual API key variants accept the API key as an argument; the DeepSeek variant uses its built-in provider template.",
       ],
       name: "login",
       summary: "Set up a Coding Plan provider.",
       usage:
-        "/login [zai-coding-plan|bigmodel-coding-plan|zai-coding-plan-api-key <api-key>|bigmodel-coding-plan-api-key <api-key>]",
+        "/login [zai-coding-plan|bigmodel-coding-plan|zai-coding-plan-api-key <api-key>|bigmodel-coding-plan-api-key <api-key>|deepseek-api-key <api-key>]",
     },
     {
       details: ["Deletes Z.ai OAuth credentials from the shared ZCode credential store."],

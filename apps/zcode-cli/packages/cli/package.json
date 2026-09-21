@@ -21,6 +21,7 @@
     "dev": "tsx src/main.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src",
+    "test": "node --import tsx/esm --test test/*.test.mjs",
     "lint:fix": "oxlint --write src"
   },
   "dependencies": {

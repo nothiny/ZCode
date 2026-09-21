@@ -11,6 +11,8 @@ import type {
   CreateModelAdapterOptions,
   configureCodingPlanApiKey,
   ConfigureCodingPlanApiKeyOptions,
+  configureDeepseekApiKey,
+  ConfigureDeepseekApiKeyOptions,
   inspectZCodeSkill,
   inspectWorkspaceHookTrust,
   grantWorkspaceHookTrust,
@@ -81,6 +83,9 @@ export interface RunDependencies extends PluginsCommandOverrides {
   configureCodingPlanApiKey?: (
     options: ConfigureCodingPlanApiKeyOptions,
   ) => ReturnType<typeof configureCodingPlanApiKey>;
+  configureDeepseekApiKey?: (
+    options: ConfigureDeepseekApiKeyOptions,
+  ) => ReturnType<typeof configureDeepseekApiKey>;
   loadDotenv?: (options?: LoadCliDotenvOptions) => DotenvLoadResult;
   prepareZCodeTelemetryEnv?: typeof prepareZCodeTelemetryEnv;
   projectConfigPath?: string;

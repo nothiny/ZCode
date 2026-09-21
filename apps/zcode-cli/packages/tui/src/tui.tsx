@@ -9,6 +9,7 @@ import { createSelectionCopyHandler, hasCopyableSelectionText } from "./app-copy
 import { activeTuiTheme, resolveTuiThemeMode, setActiveTuiThemeMode } from "./theme/index.js";
 import { resolveInitialTerminalThemeMode } from "./theme/terminal.js";
 import type { TuiOptions } from "./types.js";
+import { prepareWindowsTerminal } from "./windows-terminal.js";
 
 export const runTui = async (options: TuiOptions): Promise<number> => {
   if (!options.stdin.isTTY || !options.stdout.isTTY) {
@@ -20,50 +21,80 @@ export const runTui = async (options: TuiOptions): Promise<number> => {
   const startupThemeMode = resolveTuiThemeMode(options.theme, null);
   setActiveTuiThemeMode(startupThemeMode);
 
-  const renderer = await createCliRenderer({
-    backgroundColor: activeTuiTheme(startupThemeMode).background,
-    autoFocus: false,
-    consoleMode: "disabled",
-    enableMouseMovement: true,
-    exitOnCtrlC: false,
-    // Session replacement can raise SIGPIPE while closing MCP pipes. OpenTUI's
-    // default exit signals include it and would destroy the entire TUI.
-    exitSignals: ["SIGINT", "SIGTERM", "SIGQUIT", "SIGABRT", "SIGHUP", "SIGBREAK", "SIGBUS"],
-    consoleOptions: {
-      keyBindings: [
-        {
-          action: "copy-selection",
-          ctrl: true,
-          name: "y",
-        },
-      ],
-      onCopySelection: (text) => {
-        if (!hasCopyableSelectionText(text) || !options.writeClipboardText) return;
-        void Promise.resolve(options.writeClipboardText(text)).finally(() =>
-          renderer.clearSelection(),
-        );
-      },
-    },
-    stdin: options.stdin,
-    stdout: options.stdout,
-    targetFps: 30,
-    useMouse: true,
+  const terminalPreparation = prepareWindowsTerminal({
+    isTTY: options.stdin.isTTY && options.stdout.isTTY,
   });
-  return runTuiWithRenderer(options, renderer);
+  try {
+    const renderer = await createCliRenderer({
+      backgroundColor: activeTuiTheme(startupThemeMode).background,
+      autoFocus: false,
+      consoleMode: "disabled",
+      enableMouseMovement: true,
+      exitOnCtrlC: false,
+      // Session replacement can raise SIGPIPE while closing MCP pipes. OpenTUI's
+      // default exit signals include it and would destroy the entire TUI.
+      exitSignals: ["SIGINT", "SIGTERM", "SIGQUIT", "SIGABRT", "SIGHUP", "SIGBREAK", "SIGBUS"],
+      consoleOptions: {
+        keyBindings: [
+          {
+            action: "copy-selection",
+            ctrl: true,
+            name: "y",
+          },
+        ],
+        onCopySelection: (text) => {
+          if (!hasCopyableSelectionText(text) || !options.writeClipboardText) return;
+          void Promise.resolve(options.writeClipboardText(text)).finally(() =>
+            renderer.clearSelection(),
+          );
+        },
+      },
+      stdin: options.stdin,
+      stdout: options.stdout,
+      targetFps: 30,
+      useMouse: true,
+    });
+    return await runTuiWithRenderer(options, renderer, terminalPreparation.restore);
+  } catch (error) {
+    terminalPreparation.restore();
+    throw error;
+  }
 };
 
 /** Renderer lifecycle shared by the interactive entrypoint and native terminal tests. */
-async function runTuiWithRenderer(options: TuiOptions, renderer: CliRenderer): Promise<number> {
+export async function runTuiWithRenderer(
+  options: TuiOptions,
+  renderer: CliRenderer,
+  restoreTerminal: () => void = () => undefined,
+): Promise<number> {
   let exitCode = 0;
   let startupError: unknown;
   let destroyed = false;
+  let destroyRequested = false;
   let appMounted = false;
   let terminalThemeMode: UiThemeMode | null = null;
   const themeModeListeners = new Set<(mode: UiThemeMode) => void>();
   const root = createRoot(renderer);
+  let resolveClosed: ((code: number) => void) | undefined;
+  const requestDestroy = () => {
+    if (destroyRequested || destroyed) return;
+    destroyRequested = true;
+    // 键盘回调仍在 native 栈上时同步销毁会重入 OpenTUI，导致 raw mode 清理不完整。
+    // Defer native destruction until the input callback returns.
+    queueMicrotask(() => {
+      if (destroyed) return;
+      try {
+        renderer.destroy();
+      } catch (error) {
+        startupError ??= error;
+        finalizeRenderer();
+      }
+    });
+  };
   const onExit = (code: number) => {
+    if (destroyed || destroyRequested) return;
     exitCode = code;
-    renderer.destroy();
+    requestDestroy();
   };
   const handleThemeMode = (mode: UiThemeMode) => {
     if (destroyed) return;
@@ -121,22 +152,34 @@ async function runTuiWithRenderer(options: TuiOptions, renderer: CliRenderer): P
         onExit(1);
       });
   };
-  const closed = new Promise<number>((resolve) => {
-    renderer.once(CliRenderEvents.DESTROY, () => {
-      destroyed = true;
-      renderer.off(CliRenderEvents.FRAME, initialize);
-      renderer.off(CliRenderEvents.THEME_MODE, handleThemeMode);
-      themeModeListeners.clear();
+  function finalizeRenderer(): void {
+    if (destroyed) return;
+    destroyed = true;
+    renderer.off(CliRenderEvents.FRAME, initialize);
+    renderer.off(CliRenderEvents.THEME_MODE, handleThemeMode);
+    themeModeListeners.clear();
+    try {
       root.unmount();
-      resolve(exitCode);
-    });
+    } catch (error) {
+      startupError ??= error;
+    }
+    resolveClosed?.(exitCode);
+  }
+  const closed = new Promise<number>((resolve) => {
+    resolveClosed = resolve;
+    renderer.once(CliRenderEvents.DESTROY, finalizeRenderer);
   });
 
-  if (options.loadStartupOptions) {
-    renderer.once(CliRenderEvents.FRAME, initialize);
-    root.render(React.createElement(TuiStartupScreen, { options, onExit }));
-  } else {
-    renderApp(options);
+  try {
+    if (options.loadStartupOptions) {
+      renderer.once(CliRenderEvents.FRAME, initialize);
+      root.render(React.createElement(TuiStartupScreen, { options, onExit }));
+    } else {
+      renderApp(options);
+    }
+  } catch (error) {
+    startupError = error;
+    onExit(1);
   }
   // Terminal replies may take up to 600 ms. Detect concurrently and update the theme
   // through the existing subscription, rather than holding the first screen hostage.
@@ -144,7 +187,11 @@ async function runTuiWithRenderer(options: TuiOptions, renderer: CliRenderer): P
     if (mode) handleThemeMode(mode);
   });
 
-  const result = await closed;
-  if (startupError) throw startupError;
-  return result;
+  try {
+    const result = await closed;
+    if (startupError) throw startupError;
+    return result;
+  } finally {
+    restoreTerminal();
+  }
 }

@@ -22,6 +22,7 @@ import {
   PERSONAL_PROVIDER_CONFIG_FILE_NAME,
   ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
 } from "@zcode/provider-node";
+import { ApiKeyAccessConfig, ProviderConfig } from "@zcode/provider";
 import { readLegacyCliPersonalProviderConfig } from "./app/legacy-cli-personal-provider-config-importer.js";
 import { dirname, join } from "node:path";
 import {
@@ -84,6 +85,18 @@ export interface ConfigureCodingPlanApiKeyResult {
   configPath: string;
   model: string;
   providerId: CodingPlanProviderId;
+}
+
+export interface ConfigureDeepseekApiKeyOptions {
+  apiKey: string;
+  env?: EnvRecord;
+  personalProviderConfigPath?: string;
+}
+
+export interface ConfigureDeepseekApiKeyResult {
+  configPath: string;
+  model: string;
+  providerId: "deepseek";
 }
 
 export interface LogoutZCodeCliOptions {
@@ -276,6 +289,61 @@ export async function configureCodingPlanApiKey(
     configPath: configPatch.path,
     model: configPatch.mainModel,
     providerId: options.providerId,
+  };
+}
+
+/** 将 DeepSeek 的 API key 写入同一份 Personal Provider Config，供 CLI/TUI 共同读取。 */
+export async function configureDeepseekApiKey(
+  options: ConfigureDeepseekApiKeyOptions,
+): Promise<ConfigureDeepseekApiKeyResult> {
+  const apiKey = options.apiKey.trim();
+  if (!apiKey) {
+    throw new ZCodeCliLoginError("config_update_failed", "API key must not be empty.");
+  }
+
+  const env = options.env ?? process.env;
+  const credentialStore = createSharedZCodeCredentialStore({ env });
+  const path =
+    options.personalProviderConfigPath ??
+    env[ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV]?.trim() ??
+    join(dirname(credentialStore.filePath), PERSONAL_PROVIDER_CONFIG_FILE_NAME);
+  const personalRepository = new NodePersonalProviderConfigRepository({
+    filePath: path,
+    importLegacy: () => readLegacyCliPersonalProviderConfig({}),
+    pollingIntervalMs: false,
+  });
+
+  try {
+    await personalRepository.update((current) => {
+      const existing = current.providers.getRule("deepseek");
+      const keyOverlay = new ProviderConfig({
+        group: "standard-personal",
+        access: new ApiKeyAccessConfig({ apiKey }),
+      });
+      return {
+        providers: current.providers.setRule({
+          ...existing,
+          providerId: "deepseek",
+          providerName: existing?.providerName ?? "DeepSeek",
+          templateId: existing?.templateId ?? "deepseek",
+          config: existing?.config?.overlay(keyOverlay) ?? keyOverlay,
+        }),
+        models: current.models,
+        providerOrder: current.providerOrder,
+        defaultModelSelection: {
+          providerId: "deepseek",
+          modelId: "deepseek-v4-pro",
+        },
+      };
+    });
+  } finally {
+    personalRepository.dispose();
+  }
+
+  return {
+    configPath: path,
+    model: "deepseek/deepseek-v4-pro",
+    providerId: "deepseek",
   };
 }
 

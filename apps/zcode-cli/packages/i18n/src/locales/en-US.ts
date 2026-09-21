@@ -10,15 +10,22 @@ export const enUS: ZCodeCopy = {
     help: (version) => `zcode ${version}
 
 Usage:
+  zcode [prompt] [options]
   zcode [command] [options]
 
 With no command, zcode opens the full-screen TUI.
 
 Commands:
+  run        Run one prompt without opening the TUI (also: zcode "prompt")
+  chat       Open the interactive TUI
+  resume ID  Resume a persisted session in the TUI
+  sessions   List persisted sessions
+  models     List configured provider models
+  config     Inspect safe effective configuration and source paths
   app-server Run the ZCode Protocol stdio app server
   commands   List custom slash commands (\`commands list\`)
   doctor     Inspect runtime and packaging assumptions
-  login [zai|bigmodel]  Sign in through browser authorization
+  login [zai|bigmodel]  Sign in through browser authorization (or configure a DeepSeek API key)
   logout     Remove the shared Z.AI login credentials
   plugins    Manage plugins and marketplaces (\`plugins list|install|uninstall|enable|disable|update|validate|marketplace ...\`; alias: plugin)
   skills     List local skills (\`skills list\`)
@@ -29,6 +36,8 @@ Options:
   -h, --help       Show help
   -v, --version    Show version
   -p, --prompt <text>  Run a single prompt without opening the TUI
+  --model <id>       Select the model for this run or TUI session
+  --debug             Enable verbose diagnostics
   --memory-bench   With --prompt, enable automatic Memory extraction and wait before exiting (requires Memory enabled)
   --browser-use <mode> Enable Browser Use backend (supported: headless)
   --surface <surface>  Presentation surface for headless prompts/app-server: terminal or desktop
@@ -48,12 +57,15 @@ Options:
   -c, --continue        Resume the latest session for the current directory
   --json           Print machine-readable JSON where supported
   --no-browser     Print the OAuth URL without opening a browser
+  --no-tui         Keep prompt execution headless when a prompt is provided
+  --wait-background Wait for background tasks started by this process (default)
+  --no-wait-background Return while tasks are running and report their IDs
   --no-color       Disable ANSI colors
   --verbose        Print extra diagnostic detail
 
 Slash Commands:
   /help [command]       Show slash command help
-  /login                Choose Z.AI or BigModel browser login
+  /login                Choose a login method or enter a DeepSeek API key
   /logout               Remove the shared Z.AI login credentials
   /compact [instructions]  Compact the current conversation
   /expert [status|resume|stop|<task>]  Run or manage the expert workflow
@@ -96,7 +108,7 @@ Slash Commands:
       typePrompt: "Type a question and press Enter.",
     },
     loginRequired: {
-      help: "Use /model to view models, or /login to connect a Coding Plan account.",
+      help: "Use /model to view models, or /login to choose Coding Plan login or a DeepSeek API key.",
       message: "No available models. Configure a provider or sign in with /login.",
       status: "No available models. Configure a provider or sign in with /login.",
       title: "model setup required",
@@ -117,6 +129,12 @@ Slash Commands:
             "Complete sign-in in your browser. Authorization is detected automatically.",
           primary: "BigModel Coding Plan",
           secondary: "Open browser login; authorization is detected automatically.",
+        },
+        deepseekApiKey: {
+          inputPrimary: "Enter DeepSeek API Key",
+          inputSecondary: "Paste the key here. It is hidden while typing.",
+          primary: "DeepSeek API Key",
+          secondary: "Paste a DeepSeek API key manually.",
         },
         zaiApiKey: {
           inputPrimary: "Enter Z.AI Coding Plan API Key",
@@ -285,7 +303,7 @@ Slash Commands:
       turnFailed: "Turn failed.",
     },
     terminal: {
-      requiresInteractive: "TUI requires an interactive terminal.",
+      requiresInteractive: "TUI requires an interactive terminal; use -p/--prompt or pipe input instead.",
       starting: "Starting ZCode... Ctrl+C to exit",
     },
     transcript: {

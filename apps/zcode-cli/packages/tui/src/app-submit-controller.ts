@@ -1,4 +1,5 @@
 import React from "react";
+import { resolveTerminalAlias } from "./app-terminal-commands.js";
 import type { ModelSelection } from "@zcode/shared";
 import type { SessionEvent, TurnId } from "@zcode/contracts";
 import { submitDuringActiveTurn, submitIdleTurn } from "./app-submit.js";
@@ -13,6 +14,8 @@ import type {
 import type { TuiOptions, TuiRequestPermission, TuiSubmitPromptResult } from "./types.js";
 
 export function useSubmitValue(input: {
+  handleTerminalCommand: (text: string) => boolean;
+  clearDraft: () => void;
   activeTurnId?: TurnId;
   applyResult: (result: TuiSubmitPromptResult, preserveTurnState?: boolean) => void;
   applySessionEvent: (event: SessionEvent) => void;
@@ -39,7 +42,13 @@ export function useSubmitValue(input: {
 }): (submittedValue: string, options?: SubmitValueOptions) => Promise<void> {
   return React.useCallback(
     async (submittedValue: string, options: SubmitValueOptions = {}) => {
-      const text = input.resolveSubmittedText(submittedValue).trim();
+      const submittedText = input.resolveSubmittedText(submittedValue).trim();
+      if (input.handleTerminalCommand(submittedText)) {
+        input.setDraftValue("");
+        input.clearDraft();
+        return;
+      }
+      const text = resolveTerminalAlias(submittedText);
       const modelSelection = input.resolveSubmittedModel?.(submittedValue);
       if (!text) {
         input.setStatus(input.emptyPromptStatus);

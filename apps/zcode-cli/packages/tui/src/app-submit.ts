@@ -293,7 +293,7 @@ function createLocalUserMessage(content: string): Message & { id: string } {
 function redactSensitivePromptForTranscript(text: string): string {
   const trimmed = text.trim();
   const match =
-    /^\/login\s+(zai-coding-plan-api-key|bigmodel-coding-plan-api-key)(?:\s+([\s\S]+))?$/u.exec(
+    /^\/login\s+(zai-coding-plan-api-key|bigmodel-coding-plan-api-key|deepseek-api-key)(?:\s+([\s\S]+))?$/u.exec(
       trimmed,
     );
   if (!match?.[2]?.trim()) return text;

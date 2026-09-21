@@ -1,3 +1,4 @@
+import { extractDisallowedToolsArgs, parseGlobalArgs } from "./arguments.js";
 import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -102,31 +103,20 @@ export async function prepareCliProviderRuntimeEnv(
   };
 }
 
-function requiresProviderRuntime(argv: readonly string[]): boolean {
-  if (argv.some((arg) => arg === "--help" || arg === "-h" || arg === "--version" || arg === "-v")) {
+export function requiresProviderRuntime(argv: readonly string[]): boolean {
+  // 内部工具进程不能被当成普通 prompt，也不需要模型初始化。
+  if (argv[0]?.startsWith("__")) return false;
+  try {
+    const parsed = parseGlobalArgs(extractDisallowedToolsArgs(argv).args);
+    if (parsed.values.help || parsed.values.version) return false;
+    if (parsed.values.prompt !== undefined || parsed.values.target !== undefined) return true;
+    return ["tui", "app-server", "agent-server", "login", "logout", "models"].includes(
+      parsed.positionals[0] ?? "tui",
+    );
+  } catch {
+    // 用户输入错误由 run 的统一错误边界报告，不先接触 provider 配置。
     return false;
   }
-  if (
-    argv.some(
-      (arg) =>
-        arg === "--prompt" ||
-        arg.startsWith("--prompt=") ||
-        arg === "--target" ||
-        arg.startsWith("--target="),
-    )
-  ) {
-    return true;
-  }
-
-  const command = argv[0];
-  if (command === undefined || command.startsWith("-")) return true;
-  return (
-    command === "tui" ||
-    command === "app-server" ||
-    command === "agent-server" ||
-    command === "login" ||
-    command === "logout"
-  );
 }
 
 async function resolveBundledZCodeBuiltinProviderConfig(input: {

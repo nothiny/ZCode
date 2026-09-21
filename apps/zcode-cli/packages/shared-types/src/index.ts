@@ -37,6 +37,8 @@ export type GlobalOptions = {
   memoryBench?: boolean;
   noColor: boolean;
   outputFormat?: GlobalOutputFormat;
+  /** Headless runs wait for tasks spawned by this process unless explicitly disabled. */
+  waitBackground?: boolean;
   verbose: boolean;
 };
 

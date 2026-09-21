@@ -24,6 +24,7 @@
     "registry:generate": "node scripts/generate-bash-command-registry.mjs",
     "release": "node ../../node_modules/release-it/bin/release-it.js --config .release-it.json",
     "release:dry": "pnpm run release --release-version",
+    "test": "pnpm --filter @zcode/cli test && pnpm --filter @zcode/tui test",
     "sea": "pnpm --filter @zcode/cli sea",
     "typecheck": "turbo run typecheck"
   },

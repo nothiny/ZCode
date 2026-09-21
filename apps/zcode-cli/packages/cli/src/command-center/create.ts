@@ -146,7 +146,11 @@ export function createCommandCenter(deps: CommandCenterDeps): TuiSubmitPrompt {
 
         const apiKeyCommand = parseApiKeyLoginArgs(command.args);
         if (apiKeyCommand) {
-          if (!deps.configureApiKey) {
+          const configure =
+            apiKeyCommand.providerId === "deepseek"
+              ? deps.configureDeepseekApiKey
+              : deps.configureApiKey;
+          if (!configure) {
             return {
               mode: deps.getMode?.(),
               response: "Manual API key setup is not available in this client.",
@@ -159,22 +163,22 @@ export function createCommandCenter(deps: CommandCenterDeps): TuiSubmitPrompt {
               response: `Usage: /login ${apiKeyCommand.kind} <api-key>`,
             };
           }
+          const configured = await configure({
+            apiKey: apiKeyCommand.apiKey,
+            providerId: apiKeyCommand.providerId,
+          });
           return {
             loginRequired: false,
             mode: deps.getMode?.(),
-            response: formatProviderSetupResult(
-              await deps.configureApiKey({
-                apiKey: apiKeyCommand.apiKey,
-                providerId: apiKeyCommand.providerId,
-              }),
-            ),
+            model: configured.model,
+            response: formatProviderSetupResult(configured),
           };
         }
 
         return {
           mode: deps.getMode?.(),
           response:
-            "Usage: /login [zai-coding-plan|bigmodel-coding-plan|zai-coding-plan-api-key <api-key>|bigmodel-coding-plan-api-key <api-key>]",
+            "Usage: /login [zai-coding-plan|bigmodel-coding-plan|zai-coding-plan-api-key <api-key>|bigmodel-coding-plan-api-key <api-key>|deepseek-api-key <api-key>]",
         };
       }
 

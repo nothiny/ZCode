@@ -105,6 +105,46 @@ export function shouldClearPromptDraftOnCtrlC(draftValue: string): boolean {
   return draftValue.length > 0;
 }
 
+export type CtrlCAction = "cancel" | "clear_draft" | "confirm_exit" | "show_prompt";
+
+/**
+ * Resolve Ctrl-C once, before picker/approval/composer routing can consume it.
+ * A running turn owns the first press as cancellation; the guard then permits a
+ * second press to exit even if the runtime settles between the two key events.
+ */
+export function resolveCtrlCAction({
+  busy,
+  draftValue,
+  guard,
+  nowMs,
+  windowMs = CTRL_C_EXIT_CONFIRMATION_WINDOW_MS,
+}: {
+  busy: boolean;
+  draftValue: string;
+  guard: CtrlCExitGuard;
+  nowMs: number;
+  windowMs?: number;
+}): CtrlCAction {
+  if (busy) {
+    return resolveCtrlCExitIntent(guard, nowMs, windowMs) === "confirm_exit"
+      ? "confirm_exit"
+      : "cancel";
+  }
+  // The confirmation belongs to the preceding cancellation, even if React has
+  // already rendered the turn idle and the user started a new draft meanwhile.
+  const elapsedMs = guard.lastPressAtMs === undefined ? undefined : nowMs - guard.lastPressAtMs;
+  if (elapsedMs !== undefined && elapsedMs >= 0 && elapsedMs <= windowMs) {
+    return resolveCtrlCExitIntent(guard, nowMs, windowMs) === "confirm_exit"
+      ? "confirm_exit"
+      : "show_prompt";
+  }
+  if (shouldClearPromptDraftOnCtrlC(draftValue)) {
+    resetCtrlCExitGuard(guard);
+    return "clear_draft";
+  }
+  return resolveCtrlCExitIntent(guard, nowMs, windowMs);
+}
+
 export type CtrlCExitGuard = {
   lastPressAtMs: number | undefined;
 };

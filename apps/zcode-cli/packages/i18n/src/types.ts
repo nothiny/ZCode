@@ -62,6 +62,12 @@ export interface TuiCopy {
         primary: string;
         secondary: string;
       };
+      deepseekApiKey: {
+        inputPrimary: string;
+        inputSecondary: string;
+        primary: string;
+        secondary: string;
+      };
       zaiApiKey: {
         inputPrimary: string;
         inputSecondary: string;

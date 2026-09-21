@@ -10,15 +10,22 @@ export const zhCN: ZCodeCopy = {
     help: (version) => `zcode ${version}
 
 用法:
+  zcode [prompt] [options]
   zcode [command] [options]
 
 不传 command 时，zcode 会打开全屏 TUI。
 
 命令:
+  run        单次运行 prompt，不打开 TUI（也支持 zcode "prompt"）
+  chat       打开交互式 TUI
+  resume ID  在 TUI 中恢复持久化 session
+  sessions   列出持久化 session
+  models     列出已配置的 provider model
+  config     查看安全的生效配置和来源路径
   app-server 运行 ZCode Protocol stdio app server
   commands   列出自定义 slash commands（\`commands list\`）
   doctor     检查运行时和打包假设
-  login [zai|bigmodel]  通过浏览器授权登录
+  login [zai|bigmodel]  通过浏览器授权登录（或配置 DeepSeek API key）
   logout     删除共享的 Z.AI 登录凭据
   plugins    管理插件与市场（\`plugins list|install|uninstall|enable|disable|update|validate|marketplace ...\`；别名 plugin）
   skills     列出本地 skills（\`skills list\`）
@@ -29,6 +36,8 @@ export const zhCN: ZCodeCopy = {
   -h, --help       显示帮助
   -v, --version    显示版本
   -p, --prompt <text>  单次运行 prompt，不打开 TUI
+  --model <id>       选择本次运行或 TUI session 的模型
+  --debug             开启详细诊断信息
   --memory-bench   配合 --prompt 开启自动 Memory 提取并等待后退出（需已开启 Memory）
   --browser-use <mode> 启用 Browser Use backend（当前支持：headless）
   --surface <surface>  设置无头 prompt/app-server 的呈现面：terminal 或 desktop
@@ -48,12 +57,15 @@ export const zhCN: ZCodeCopy = {
   -c, --continue        恢复当前目录最近的 session
   --json           在支持的命令中输出机器可读 JSON
   --no-browser     不打开浏览器，只打印 OAuth URL
+  --no-tui         提供 prompt 时保持无 TUI 的 headless 执行
+  --wait-background 等待本次进程启动的后台任务（默认）
+  --no-wait-background 任务仍在运行时立即返回并报告任务 ID
   --no-color       禁用 ANSI 颜色
   --verbose        打印更多诊断信息
 
 Slash Commands:
   /help [command]       显示 slash command 帮助
-  /login                使用 Z.AI OAuth 登录
+  /login                选择登录方式或输入 DeepSeek API key
   /logout               删除共享的 Z.AI 登录凭据
   /compact [instructions]  压缩当前对话
   /expert [status|resume|stop|<task>]  运行或管理 expert workflow
@@ -95,7 +107,7 @@ Slash Commands:
       typePrompt: "输入问题后按 Enter。",
     },
     loginRequired: {
-      help: "输入 /model 查看模型，或输入 /login 连接 Coding Plan 账号。",
+      help: "输入 /model 查看模型，或输入 /login 选择 Coding Plan 登录或 DeepSeek API key。",
       message: "没有可用模型，请配置 Provider 或输入 /login 登录。",
       status: "没有可用模型，请配置 Provider 或输入 /login 登录。",
       title: "需要配置模型",
@@ -115,6 +127,12 @@ Slash Commands:
           pendingSecondary: "请在浏览器里完成登录，授权成功后会自动继续配置。",
           primary: "BigModel Coding Plan",
           secondary: "打开浏览器登录，CLI 会自动查询授权结果。",
+        },
+        deepseekApiKey: {
+          inputPrimary: "输入 DeepSeek API Key",
+          inputSecondary: "在这里粘贴 key，输入时会隐藏显示。",
+          primary: "DeepSeek API Key",
+          secondary: "手动粘贴 DeepSeek API key。",
         },
         zaiApiKey: {
           inputPrimary: "输入 Z.AI Coding Plan API Key",
@@ -283,7 +301,7 @@ Slash Commands:
     },
     terminal: {
       starting: "正在启动 ZCode… Ctrl+C 退出",
-      requiresInteractive: "TUI 需要交互式终端。",
+      requiresInteractive: "TUI 需要交互式终端；请使用 -p/--prompt 或通过管道提供输入。",
     },
     transcript: {
       compact: {

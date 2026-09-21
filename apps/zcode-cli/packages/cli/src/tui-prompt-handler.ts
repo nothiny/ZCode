@@ -20,6 +20,7 @@ import {
 import { DEFAULT_CLI_CLEANUP_TIMEOUT_MS, runCliCleanupWithTimeout } from "./shutdown.js";
 import {
   configureApiKeyForTui,
+  configureDeepseekApiKeyForTui,
   loginBigmodelForTui,
   loginForTui,
   logoutForTui,
@@ -59,6 +60,7 @@ export function createTuiSubmitPrompt(
   forceMcs = false,
   browserUse?: GlobalOptions["browserUse"],
   browserExecutable?: GlobalOptions["browserExecutable"],
+  initialModel?: string,
 ): TuiPromptHandler {
   let app: Awaited<ReturnType<NonNullable<RunDependencies["createZCodeApp"]>>> | undefined;
   let activeUiLocale = uiLocale;
@@ -176,6 +178,9 @@ export function createTuiSubmitPrompt(
       await runCliCleanupWithTimeout(async () => browserRuntime?.close(), cleanupTimeoutMs);
       throw error;
     }
+    if (initialModel) {
+      await createdApp.setModel(initialModel);
+    }
     if (browserRuntime) browserRuntimes.set(createdApp as object, browserRuntime);
     // 初始化在等待旧身份导入时 TUI 可能已关闭；迟到 App 不能重新成为当前会话。
     if (closeHandlerPromise) {
@@ -265,6 +270,7 @@ export function createTuiSubmitPrompt(
     listSessions: () => listSessionsForTui(deps),
     listSkills: () => listSkillsForTui(deps),
     configureApiKey: (options) => configureApiKeyForTui(deps, options),
+    configureDeepseekApiKey: (options) => configureDeepseekApiKeyForTui(deps, options),
     login: (options) => loginForTui(deps, options),
     loginBigmodel: (options) => loginBigmodelForTui(deps, options),
     loadCustomCommand: (name) => loadCustomCommandForTui(deps, name),

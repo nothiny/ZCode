@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Existing TUI root composes the renderer, event reducer, and command adapter in one lifecycle owner. */
 import type { ModelUsageSummary, TodoItem, TurnId } from "@zcode/contracts";
 import { getZCodeCopy } from "@zcode/i18n";
 import React, { useCallback, useMemo, useRef, useState } from "react";
@@ -11,6 +12,7 @@ import { useTuiModeSwitcher } from "./app-mode.js";
 import { createTuiPermissionRequester } from "./app-permission.js";
 import { appendAgentResult } from "./app-submit.js";
 import { useSubmitValue } from "./app-submit-controller.js";
+import { terminalSlashCommands, useTerminalCommandHandler } from "./app-terminal-commands.js";
 import { filterSlashCommands, reconcileSlashSelection } from "./app-input.js";
 import { useEffortCommandController } from "./app-effort-command.js";
 import { useInputHistory } from "./app-input-history.js";
@@ -113,7 +115,10 @@ export function TuiApp({
   const modifiedFileToolCallIdsRef = useRef(new Set<string>());
   const toolNamesByIdRef = useRef(new Map<string, string>());
 
-  const slashCommands = options.slashCommands ?? [];
+  const slashCommands = useMemo(
+    () => terminalSlashCommands(options.slashCommands ?? []),
+    [options.slashCommands],
+  );
   const [effortOptions, setEffortOptions] = useState<NonNullable<TuiOptions["effortOptions"]>>(
     () => initialResult?.effortOptions ?? options.effortOptions ?? [],
   );
@@ -243,7 +248,33 @@ export function TuiApp({
     [effortCommand, filteredSlashCommands, modeCommand, modelCommand, slashSelection],
   );
 
+  const terminalCommandHandler = useTerminalCommandHandler({
+    busy,
+    model,
+    sessionId: options.getMainSessionId?.(),
+    workspaceDirectory: options.workspaceDirectory,
+    contextUsage,
+    usage,
+    commands: slashCommands,
+    clearDraft: () => {
+      inputEditorRef.current?.setText("");
+      inputEditorRef.current?.gotoBufferEnd();
+    },
+    clear: () => {
+      setMessages([]);
+      setLiveModelText("");
+    },
+    show: (content) => setMessages((current) => [...current, { role: "system", content }]),
+    cancel: () => abortControllerRef.current?.abort(),
+    exit: () => queueMicrotask(() => onExit(0)),
+  });
+
   const submitValue = useSubmitValue({
+    clearDraft: () => {
+      inputEditorRef.current?.setText("");
+      inputEditorRef.current?.gotoBufferEnd();
+    },
+    handleTerminalCommand: terminalCommandHandler,
     activeTurnId,
     applyResult,
     applySessionEvent,

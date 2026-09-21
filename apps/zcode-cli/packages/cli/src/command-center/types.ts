@@ -171,13 +171,13 @@ export type CommandCenterBigmodelLoginResult = {
 
 export type CommandCenterApiKeyOptions = {
   apiKey: string;
-  providerId: "bigmodel" | "zai";
+  providerId: "bigmodel" | "deepseek" | "zai";
 };
 
 export type CommandCenterApiKeyResult = {
   configPath: string;
   model: string;
-  providerId: "bigmodel" | "zai";
+  providerId: "bigmodel" | "deepseek" | "zai";
 };
 
 export type CommandCenterLogoutResult = {
@@ -309,6 +309,9 @@ export type CommandCenterDeps = {
     options?: CommandCenterBigmodelLoginOptions,
   ) => Promise<CommandCenterBigmodelLoginResult>;
   configureApiKey?: (options: CommandCenterApiKeyOptions) => Promise<CommandCenterApiKeyResult>;
+  configureDeepseekApiKey?: (
+    options: CommandCenterApiKeyOptions,
+  ) => Promise<CommandCenterApiKeyResult>;
   loadCustomCommand?: (name: string) => Promise<CommandCenterCustomCommandContent>;
   newApp?: () => Promise<CommandCenterApp>;
   recordInputHistory?: (

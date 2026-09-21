@@ -6,7 +6,6 @@ import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { handleApprovalKey } from "./app-approval.js";
 import { handleSelectionKey } from "./app-input.js";
 import {
-  CTRL_C_EXIT_PROMPT,
   PROMPT_DRAFT_CLEARED_STATUS,
   completeEffortCommand,
   completeModeCommand,
@@ -16,8 +15,6 @@ import {
   type CtrlCExitGuard,
   isModeSwitchKey,
   resetCtrlCExitGuard,
-  resolveCtrlCExitIntent,
-  shouldClearPromptDraftOnCtrlC,
   shouldHandleInputHistoryNavigation,
   workflowExpansionActionFor,
 } from "./app-keyboard-helpers.js";
@@ -39,20 +36,7 @@ import type {
 import type { SidebarSectionId } from "./app-sidebar-layout.js";
 import type { TuiEffortOption, TuiModeOption, TuiModelOption } from "./types.js";
 import { latestRetryableCompactCommand } from "./app-compact-timeline.js";
-
-export {
-  CTRL_C_EXIT_CONFIRMATION_WINDOW_MS,
-  completeEffortCommand,
-  completeModeCommand,
-  completeModelCommand,
-  completeSlashCommand,
-  createCtrlCExitGuard,
-  isModeSwitchKey,
-  resetCtrlCExitGuard,
-  resolveCtrlCExitIntent,
-  shouldHandleInputHistoryNavigation,
-} from "./app-keyboard-helpers.js";
-
+import { handleCtrlCKey } from "./app-keyboard-ctrl-c.js";
 type UseTuiKeyboardControlsOptions = {
   readOnlyView?: { back(): void };
   abortControllerRef: MutableRefObject<AbortController | undefined>;
@@ -138,6 +122,25 @@ export function useTuiKeyboardControls({
       (key: KeyEvent) => {
         if (key.eventType === "release") return;
 
+        if (
+          handleCtrlCKey(
+            key,
+            busy || abortControllerRef.current !== undefined,
+            draftValue,
+            ctrlCExitGuardRef.current,
+            {
+              abortControllerRef,
+              consumeKey,
+              copyCurrentSelection,
+              onExit,
+              setDraftAttachments,
+              setDraftValue,
+              setStatus,
+            },
+          )
+        )
+          return;
+
         if (readOnlyView) {
           resetCtrlCExitGuard(ctrlCExitGuardRef.current);
           if (
@@ -195,32 +198,6 @@ export function useTuiKeyboardControls({
           })
         ) {
           resetCtrlCExitGuard(ctrlCExitGuardRef.current);
-          return;
-        }
-
-        if (key.name === "c" && key.ctrl) {
-          consumeKey(key);
-          if (copyCurrentSelection()) {
-            resetCtrlCExitGuard(ctrlCExitGuardRef.current);
-            return;
-          }
-
-          if (shouldClearPromptDraftOnCtrlC(draftValue)) {
-            resetCtrlCExitGuard(ctrlCExitGuardRef.current);
-            setDraftValue("");
-            setDraftAttachments([]);
-            setStatus(PROMPT_DRAFT_CLEARED_STATUS);
-            return;
-          }
-
-          // A single Ctrl-C used to exit immediately, which made long sessions easy to lose.
-          if (resolveCtrlCExitIntent(ctrlCExitGuardRef.current, Date.now()) === "confirm_exit") {
-            abortControllerRef.current?.abort();
-            onExit(0);
-            return;
-          }
-
-          setStatus(CTRL_C_EXIT_PROMPT);
           return;
         }
 

@@ -22,6 +22,7 @@ export const runTuiCommand = async (
   resumeRequest?: CliResumeRequest,
   toolDisallowlist?: readonly string[],
   forceMcs = false,
+  model?: string,
 ): Promise<number> => {
   try {
     const modeState = createCliModeState(mode);
@@ -46,6 +47,7 @@ export const runTuiCommand = async (
       forceMcs,
       options.browserUse,
       options.browserExecutable,
+      model,
     );
     const unregisterShutdownHandlers = registerCliShutdownHandlers({
       cleanup: async () => {

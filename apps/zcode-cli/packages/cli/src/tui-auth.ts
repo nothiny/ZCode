@@ -62,12 +62,27 @@ export async function configureApiKeyForTui(
   deps: RunDependencies,
   options: CommandCenterApiKeyOptions,
 ) {
+  if (options.providerId === "deepseek") {
+    throw new Error("DeepSeek API keys use the DeepSeek provider setup path.");
+  }
   const configure =
     deps.configureCodingPlanApiKey ?? (await loadBootstrapModule()).configureCodingPlanApiKey;
   return await configure({
     apiKey: options.apiKey,
     env: deps.env ?? process.env,
     providerId: options.providerId,
+  });
+}
+
+export async function configureDeepseekApiKeyForTui(
+  deps: RunDependencies,
+  options: CommandCenterApiKeyOptions,
+) {
+  const configure =
+    deps.configureDeepseekApiKey ?? (await loadBootstrapModule()).configureDeepseekApiKey;
+  return await configure({
+    apiKey: options.apiKey,
+    env: deps.env ?? process.env,
   });
 }
 

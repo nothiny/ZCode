@@ -2,7 +2,7 @@ import type { TuiPromptInput } from "@zcode/tui";
 import type { SlashCommand } from "./slash-command-types.js";
 import type { CommandCenterDeps } from "./types.js";
 
-const API_KEY_LOGIN_PATTERN = /(?:^|\s)(?:bigmodel|zai)-coding-plan-api-key(?:\s|$)/u;
+const API_KEY_LOGIN_PATTERN = /(?:^|\s)(?:(?:bigmodel|zai)-coding-plan-api-key|deepseek-api-key)(?:\s|$)/u;
 
 export async function recordSlashCommandInHistory(
   deps: CommandCenterDeps,

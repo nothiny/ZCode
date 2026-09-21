@@ -76,6 +76,25 @@ export function buildLoginSelection(locale?: string): TuiSelection {
         primary: copy.options.bigmodelApiKey.primary,
         secondary: copy.options.bigmodelApiKey.secondary,
       },
+      {
+        command: "/login deepseek-api-key",
+        id: "deepseek-api-key",
+        input: {
+          cancelStatus: copy.input.cancelStatus,
+          clearStatus: copy.input.clearStatus,
+          emptyStatus: copy.input.emptyStatus,
+          help: copy.input.help,
+          mask: true,
+          placeholder: copy.input.placeholder,
+          primary: copy.options.deepseekApiKey.inputPrimary,
+          secondary: copy.options.deepseekApiKey.inputSecondary,
+          status: copy.input.status,
+          submitStatus: copy.input.submitStatus,
+        },
+        keywords: ["deepseek", "api", "key", "manual"],
+        primary: copy.options.deepseekApiKey.primary,
+        secondary: copy.options.deepseekApiKey.secondary,
+      },
     ],
     prompt: copy.prompt,
     title: copy.title,
@@ -104,9 +123,14 @@ export function formatLoginResult(result: CommandCenterLoginResult): string {
 export function formatProviderSetupResult(result: {
   configPath: string;
   model: string;
-  providerId: "bigmodel" | "zai";
+  providerId: "bigmodel" | "deepseek" | "zai";
 }): string {
-  const provider = result.providerId === "bigmodel" ? "BigModel" : "Z.AI";
+  const provider =
+    result.providerId === "bigmodel"
+      ? "BigModel"
+      : result.providerId === "deepseek"
+        ? "DeepSeek"
+        : "Z.AI";
   return [
     `Configured ${provider} Coding Plan.`,
     `Model: ${result.model}`,
@@ -144,16 +168,24 @@ export async function emitLoginAuthorizeMessage(
 
 export function parseApiKeyLoginArgs(args: string): {
   apiKey: string;
-  kind: "bigmodel-coding-plan-api-key" | "zai-coding-plan-api-key";
-  providerId: "bigmodel" | "zai";
+  kind: "bigmodel-coding-plan-api-key" | "deepseek-api-key" | "zai-coding-plan-api-key";
+  providerId: "bigmodel" | "deepseek" | "zai";
 } | null {
   const [kind, ...rest] = args.split(/\s+/u);
-  if (kind !== "zai-coding-plan-api-key" && kind !== "bigmodel-coding-plan-api-key") {
+  if (
+    kind !== "zai-coding-plan-api-key" &&
+    kind !== "bigmodel-coding-plan-api-key" &&
+    kind !== "deepseek-api-key"
+  ) {
     return null;
   }
   return {
     apiKey: rest.join(" ").trim(),
     kind,
-    providerId: kind.startsWith("bigmodel") ? "bigmodel" : "zai",
+    providerId: kind.startsWith("bigmodel")
+      ? "bigmodel"
+      : kind.startsWith("deepseek")
+        ? "deepseek"
+        : "zai",
   };
 }
